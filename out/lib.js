@@ -113,14 +113,14 @@ function applyUpdate(state, settings) {
     console.log("Applying update ...");
     const applyUpdateScript = settings.applyUpdateScript;
     return catchError(state, () => {
-        cmd(state, ["git", "add", "-u"]); // TODO what if no changes?
+        cmd(state, ["git", "add", "."]);
         sh(state, applyUpdateScript);
         return state;
     });
 }
 function detectChanges(state, _settings) {
     try {
-        cmd(state, ["git", "diff-files", "--quiet"]);
+        cmd(state, ["git", "diff", "--cached", "--quiet"]);
         return Object.assign(Object.assign({}, state), { hasChanges: false });
     }
     catch (e) {

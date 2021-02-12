@@ -11,6 +11,8 @@ inputs:
   commitMessage: { "description": 'TODO', required: false }
   prTitle: { "description": 'TODO', required: false }
   prBody: { "description": 'TODO', required: false }
+  repo: { "description": 'TODO', required: false }
+  owner: { "description": 'TODO', required: false }
 
 runs:
   using: 'node12'

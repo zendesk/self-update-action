@@ -33,14 +33,18 @@ jobs:
 ## Workflow:
 
 1. evaluate the `updateScript` setting (a bash string)
-2. If the `applyUpdateScript` setting is provided:
-   - Stage all changes from the `updateScript` step, so that they don't count as changes
-   - Evaluate the `applyUpdateScript` setting
-3. If there are no unstaged git changes or errors, the action terminates successfully (nothing to do)
-4. commit to the branch specified in `branchName` setting, and **force push** to `origin`
-5. Search for open PRs for this branch
+2. If the `preDetectChangeScript` setting is provided (default `git add .`):
+   - Execute it to stage changes that should be used by the detect
+     changes step to determine if there are changes. if you only track
+     files in `vendor` then a script like `git add vendor` would work.
+3. If there are no staged git changes or errors, the action terminates successfully (nothing to do)
+4. If the `postDetectChangeScript` setting is provided (default `git add .`):
+   - Execute this to add all remaining changes that might have been
+     deliberately ignored in the pre step.
+5. commit to the branch specified in `branchName` setting, and **force push** to `origin`
+6. Search for open PRs for this branch
    - If none are found, create one (against the `baseBranch` setting, defaulting to the original checked-out branch)
-6. Update the PR description based on the template, appending any errors that were encountered
+7. Update the PR description based on the template, appending any errors that were encountered
 
 ## Caveats:
 

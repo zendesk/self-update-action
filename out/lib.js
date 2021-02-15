@@ -18,10 +18,10 @@ var StateType;
 })(StateType || (StateType = {}));
 exports.settingKeys = [
     'GITHUB_TOKEN',
-    'owner',
-    'repo',
+    'repository',
     'updateScript',
-    'applyUpdateScript',
+    'preDetectChangeScript',
+    'postDetectChangeScript',
     'branchName',
     'baseBranch',
     'commitMessage',
@@ -40,13 +40,14 @@ function parseSettings(inputs) {
         }
         return value;
     }
-    const repositoryFromEnv = (process.env['GITHUB_REPOSITORY'] || "").split('/');
+    const repositoryFromEnv = get('repository', process.env['GITHUB_REPOSITORY'] || "").split('/');
     return {
         githubToken: get('GITHUB_TOKEN'),
         owner: get('owner', repositoryFromEnv[0]),
         repo: get('repo', repositoryFromEnv[1]),
         updateScript: get('updateScript'),
-        applyUpdateScript: inputs['applyUpdateScript'] || null,
+        preDetectChangeScript: get('preDetectChangeScript', 'git add .'),
+        postDetectChangeScript: get('postDetectChangeScript', 'git add .'),
         baseBranch: inputs['baseBranch'] || null,
         branchName: get('branchName', 'self-update'),
         commitMessage: get('commitMessage', '[bot] self-update'),
@@ -65,12 +66,13 @@ function main(settings) {
         addLog(state, "Running update script ...");
         state = initEnv(state, settings);
         state = update(state, settings);
-        state = applyUpdate(state, settings);
+        state = preDetectChange(state, settings);
         state = detectChanges(state, settings);
         if (!(state.hasError || state.hasChanges)) {
             console.log("No changes detected; exiting");
             return;
         }
+        state = postDetectChange(state, settings);
         state = pushBranch(state, settings);
         state = yield findPR(state, settings, octokit);
         state = yield updatePR(state, settings, octokit);
@@ -106,15 +108,9 @@ function update(state, settings) {
         return state;
     });
 }
-function applyUpdate(state, settings) {
-    if (settings.applyUpdateScript == null || state.hasError) {
-        return state;
-    }
-    console.log("Applying update ...");
-    const applyUpdateScript = settings.applyUpdateScript;
+function preDetectChange(state, settings) {
     return catchError(state, () => {
-        cmd(state, ["git", "add", "."]);
-        sh(state, applyUpdateScript);
+        sh(state, settings.preDetectChangeScript);
         return state;
     });
 }
@@ -129,9 +125,15 @@ function detectChanges(state, _settings) {
         return Object.assign(Object.assign({}, state), { hasChanges: true });
     }
 }
+function postDetectChange(state, settings) {
+    return catchError(state, () => {
+        sh(state, settings.postDetectChangeScript);
+        return state;
+    });
+}
 function pushBranch(state, settings) {
     return catchError(state, () => {
-        cmd(state, ["git", "commit", "--allow-empty", "--all", "--message", settings.commitMessage]);
+        cmd(state, ["git", "commit", "--allow-empty", "--message", settings.commitMessage]);
         const commit = cmd(state, ["git", "rev-parse", "HEAD"]);
         cmd(state, ["git",
             "-c", "http.https://github.com/.extraheader=",
@@ -147,24 +149,24 @@ function findPR(state, settings, octokit) {
     return __awaiter(this, void 0, void 0, function* () {
         const { repo, owner, branchName } = settings;
         const response = yield octokit.graphql(`
-		query findPR($owner: String!, $repo: String!, $branchName: String!) {
-			repository(owner: $owner, name: $repo) {
-				id
-				pullRequests(
-					headRefName: $branchName,
-					states:[OPEN],
-					first:1)
-				{
-					edges {
-						node {
-							id
-							url
-						}
-					}
-				}
-			}
-		}
-	`, {
+    query findPR($owner: String!, $repo: String!, $branchName: String!) {
+      repository(owner: $owner, name: $repo) {
+        id
+        pullRequests(
+          headRefName: $branchName,
+          states:[OPEN],
+          first:1)
+        {
+          edges {
+            node {
+              id
+              url
+            }
+          }
+        }
+      }
+    }
+  `, {
             owner,
             repo,
             branchName,
@@ -199,27 +201,27 @@ function createPR(state, settings, octokit) {
         }
         const baseBranch = settings.baseBranch || cmdSilent(state, ['git', 'branch', '--show-current']);
         const response = yield octokit.graphql(`
-		mutation updatePR(
-			$branchName: String!,
-			$baseBranch: String!,
-			$body: String!,
-			$title: String!,
-			$repoId: String!
-		) {
-			createPullRequest(input: {
-				repositoryId: $repoId,
-				baseRefName: $baseBranch,
-				headRefName: $branchName,
-				title: $title,
-				body: $body
-			}) {
-				pullRequest {
-					id
-					url
-				}
-			}
-		}
-	`, {
+    mutation updatePR(
+      $branchName: String!,
+      $baseBranch: String!,
+      $body: String!,
+      $title: String!,
+      $repoId: String!
+    ) {
+      createPullRequest(input: {
+        repositoryId: $repoId,
+        baseRefName: $baseBranch,
+        headRefName: $branchName,
+        title: $title,
+        body: $body
+      }) {
+        pullRequest {
+          id
+          url
+        }
+      }
+    }
+  `, {
             repoId: state.repository.id,
             branchName: settings.branchName,
             baseBranch: baseBranch,
@@ -233,14 +235,14 @@ function createPR(state, settings, octokit) {
 function updatePRDescription(pullRequest, state, settings, octokit) {
     return __awaiter(this, void 0, void 0, function* () {
         yield octokit.graphql(`
-		mutation updatePR($id: String!, $body: String!) {
-			updatePullRequest(input: { pullRequestId: $id, body: $body }) {
-				pullRequest {
-					id
-				}
-			}
-		}
-	`, {
+    mutation updatePR($id: String!, $body: String!) {
+      updatePullRequest(input: { pullRequestId: $id, body: $body }) {
+        pullRequest {
+          id
+        }
+      }
+    }
+  `, {
             id: pullRequest.id,
             body: renderPRDescription(state, settings),
         });

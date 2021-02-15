@@ -17,8 +17,9 @@ type Settings = {
   owner: string,
   repo: string,
   updateScript: string,
-  applyUpdateScript: string | null,
   baseBranch: string | null,
+  preDetectChangeScript: string,
+  postDetectChangeScript: string,
   branchName: string,
   commitMessage: string,
   authorName: string,
@@ -30,10 +31,10 @@ type Settings = {
 
 export const settingKeys = [
   'GITHUB_TOKEN',
-  'owner',
-  'repo',
+  'repository',
   'updateScript',
-  'applyUpdateScript',
+  'preDetectChangeScript',
+  'postDetectChangeScript',
   'branchName',
   'baseBranch',
   'commitMessage',
@@ -55,14 +56,15 @@ export function parseSettings(inputs: Record<string, string>): Settings {
     return value
   }
 
-  const repositoryFromEnv = (process.env['GITHUB_REPOSITORY'] || "").split('/')
+  const repositoryFromEnv = get('repository', process.env['GITHUB_REPOSITORY'] || "").split('/')
 
   return {
     githubToken: get('GITHUB_TOKEN'),
     owner: get('owner', repositoryFromEnv[0]),
     repo: get('repo', repositoryFromEnv[1]),
     updateScript: get('updateScript'),
-    applyUpdateScript: inputs['applyUpdateScript'] || null,
+    preDetectChangeScript: get('preDetectChangeScript', 'git add .'),
+    postDetectChangeScript: get('postDetectChangeScript', 'git add .'),
     baseBranch: inputs['baseBranch'] || null,
     branchName: get('branchName', 'self-update'),
     commitMessage: get('commitMessage', '[bot] self-update'),
@@ -92,12 +94,13 @@ export async function main(settings: Settings) {
   addLog(state, "Running update script ...")
   state = initEnv(state, settings);
   state = update(state, settings);
-  state = applyUpdate(state, settings);
+  state = preDetectChange(state, settings);
   state = detectChanges(state, settings);
   if (!(state.hasError || state.hasChanges)) {
     console.log("No changes detected; exiting")
     return
   }
+  state = postDetectChange(state, settings);
 
   state = pushBranch(state, settings);
 
@@ -136,16 +139,9 @@ function update(state: State, settings: Settings): State {
   })
 }
 
-function applyUpdate(state: State, settings: Settings): State {
-  if (settings.applyUpdateScript == null || state.hasError) {
-    return state
-  }
-  console.log("Applying update ...")
-
-  const applyUpdateScript = settings.applyUpdateScript
+function preDetectChange(state: State, settings: Settings): State {
   return catchError(state, () => {
-    cmd(state, ["git", "add", "."])
-    sh(state, applyUpdateScript)
+    sh(state, settings.preDetectChangeScript)
     return state
   })
 }
@@ -154,16 +150,23 @@ function detectChanges(state: State, _settings: Settings): State {
   try {
     cmd(state, ["git", "diff", "--cached", "--quiet"])
     return { ...state, hasChanges: false }
-  } catch(e) {
+  } catch (e) {
     // it failed, presumably because there were differences.
     // (if not, the commit will fail later)
     return { ...state, hasChanges: true }
   }
 }
 
+function postDetectChange(state: State, settings: Settings): State {
+  return catchError(state, () => {
+    sh(state, settings.postDetectChangeScript)
+    return state
+  })
+}
+
 export function pushBranch(state: State, settings: Settings): State {
   return catchError(state, () => {
-    cmd(state, ["git", "commit", "--allow-empty", "--all", "--message", settings.commitMessage])
+    cmd(state, ["git", "commit", "--allow-empty", "--message", settings.commitMessage])
     const commit = cmd(state, ["git", "rev-parse", "HEAD"])
     cmd(state, ["git",
       "-c", "http.https://github.com/.extraheader=",
@@ -207,11 +210,11 @@ export async function findPR(state: State, settings: Settings, octokit: Octokit)
       }
     }
   `,
-  {
-    owner,
-    repo,
-    branchName,
-  })
+    {
+      owner,
+      repo,
+      branchName,
+    })
 
   const repository = { id: response.repository.id }
   const openPRs = response.repository.pullRequests.edges.map((e) => e.node);
@@ -224,7 +227,7 @@ export async function updatePR(state: State, settings: Settings, octokit: Octoki
   if (state.pullRequest == null) {
     const pullRequest = await createPR(state, settings, octokit)
     console.log(`Created PR ${pullRequest.url}`)
-    return {...state, pullRequest }
+    return { ...state, pullRequest }
   } else {
     console.log(`Updating PR ${state.pullRequest.url}`)
     await updatePRDescription(state.pullRequest, state, settings, octokit)
@@ -260,13 +263,13 @@ async function createPR(state: State, settings: Settings, octokit: Octokit): Pro
       }
     }
   `,
-  {
-    repoId: state.repository.id,
-    branchName: settings.branchName,
-    baseBranch: baseBranch,
-    title: settings.prTitle,
-    body: renderPRDescription(state, settings),
-  })
+    {
+      repoId: state.repository.id,
+      branchName: settings.branchName,
+      baseBranch: baseBranch,
+      title: settings.prTitle,
+      body: renderPRDescription(state, settings),
+    })
   /* console.log(JSON.stringify(response)) */
   return response.createPullRequest.pullRequest
 }
@@ -281,10 +284,10 @@ export async function updatePRDescription(pullRequest: PullRequest, state: State
       }
     }
   `,
-  {
-    id: pullRequest.id,
-    body: renderPRDescription(state, settings),
-  })
+    {
+      id: pullRequest.id,
+      body: renderPRDescription(state, settings),
+    })
 }
 
 // Since we're posting command output to github, we need to replicate github's censoring
@@ -292,7 +295,7 @@ function censorSecrets(log: Array<string>, settings: Settings): Array<string> {
   // ugh replaceAll should be a thing...
   return log.map((output) => {
     const secret = settings.githubToken
-    while(output.indexOf(secret) != -1) {
+    while (output.indexOf(secret) != -1) {
       output = output.replace(secret, '********')
     }
     return output
@@ -325,9 +328,9 @@ function renderPRDescription(state: State, settings: Settings): string {
 function catchError(state: State, fn: () => State): State {
   try {
     return fn()
-  } catch(e) {
+  } catch (e) {
     addLog(state, "ERROR: " + e.message)
-    return {...state, hasError: true }
+    return { ...state, hasError: true }
   }
 }
 

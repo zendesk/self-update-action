@@ -22,7 +22,11 @@ function main() {
                 }
             });
             let settings = lib.parseSettings(env);
-            yield lib.main(settings);
+            let pr = yield lib.main(settings);
+            if (pr != null) {
+                core.setOutput('pr', pr.id);
+                core.setOutput('pr_url', pr.url);
+            }
         }
         catch (e) {
             console.log(e);

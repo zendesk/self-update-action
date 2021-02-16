@@ -71,7 +71,7 @@ function main(settings) {
         state = detectChanges(state, settings);
         if (!(state.hasError || state.hasChanges)) {
             console.log("No changes detected; exiting");
-            return;
+            return null;
         }
         state = postDetectChange(state, settings);
         state = pushBranch(state, settings);
@@ -81,6 +81,7 @@ function main(settings) {
             // make sure errors are reflected in action result
             process.exit(1);
         }
+        return state.pullRequest;
     });
 }
 exports.main = main;

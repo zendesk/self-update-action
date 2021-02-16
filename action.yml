@@ -13,6 +13,12 @@ inputs:
   prBody: { "description": 'TODO', required: false }
   repository: { "description": 'The GitHub repository in the form owner/repo defaults to GITHUB_REPOSITORY', required: false }
 
+outputs:
+  pr:
+    description: "The ID of the PR that was created/updated"
+  pr_url:
+    description: "The URL to the PR that was created/updated"
+
 runs:
   using: 'node12'
   main: 'action.js'

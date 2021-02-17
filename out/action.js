@@ -22,8 +22,9 @@ function main() {
                 }
             });
             let settings = lib.parseSettings(env);
-            let pr = yield lib.main(settings);
+            const pr = yield lib.main(settings);
             if (pr != null) {
+                console.log(`Setting output PR ${pr.id}`);
                 core.setOutput('pr', pr.id);
                 core.setOutput('pr_url', pr.url);
             }

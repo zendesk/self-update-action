@@ -11,8 +11,9 @@ async function main() {
       }
     })
     let settings = lib.parseSettings(env)
-    let pr = await lib.main(settings)
+    const pr = await lib.main(settings)
     if (pr != null) {
+      console.log(`Setting output PR ${pr.id}`)
       core.setOutput('pr', pr.id)
       core.setOutput('pr_url', pr.url)
     }

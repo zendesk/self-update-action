@@ -162,6 +162,7 @@ function findPR(state, settings, octokit) {
           edges {
             node {
               id
+              number
               url
             }
           }
@@ -219,6 +220,7 @@ function createPR(state, settings, octokit) {
       }) {
         pullRequest {
           id
+          number
           url
         }
       }

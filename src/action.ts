@@ -13,8 +13,8 @@ async function main() {
     let settings = lib.parseSettings(env)
     const pr = await lib.main(settings)
     if (pr != null) {
-      console.log(`Setting output PR ${pr.id}`)
-      core.setOutput('pr', pr.id)
+      console.log(`Setting output PR ${pr.number}`)
+      core.setOutput('pr', pr.number.toString())
       core.setOutput('pr_url', pr.url)
     }
   } catch (e) {

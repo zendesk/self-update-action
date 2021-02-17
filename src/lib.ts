@@ -81,6 +81,7 @@ export function parseSettings(inputs: Record<string, string>): Settings {
 type PullRequest = {
   id: string,
   url: string,
+  number: number,
 }
 
 type Repository = {
@@ -206,6 +207,7 @@ export async function findPR(state: State, settings: Settings, octokit: Octokit)
           edges {
             node {
               id
+              number
               url
             }
           }
@@ -261,6 +263,7 @@ async function createPR(state: State, settings: Settings, octokit: Octokit): Pro
       }) {
         pullRequest {
           id
+          number
           url
         }
       }

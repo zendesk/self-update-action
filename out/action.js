@@ -24,8 +24,9 @@ function main() {
             let settings = lib.parseSettings(env);
             const pr = yield lib.main(settings);
             if (pr != null) {
-                console.log(`Setting output PR ${pr.number}`);
+                console.log(`Setting output pr=${pr.number}`);
                 core.setOutput('pr', pr.number.toString());
+                console.log(`Setting output pr_url=${pr.url}`);
                 core.setOutput('pr_url', pr.url);
             }
         }

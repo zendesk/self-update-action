@@ -255,7 +255,7 @@ async function createPR(state: State, settings: Settings, octokit: Octokit): Pro
   }
   type Response = { createPullRequest: { pullRequest: PullRequest } }
   const baseBranch = settings.baseBranch || cmdSilent(state, ['git', 'branch', '--show-current'])
-  console.log(JSON.stringify({
+  addLog(state, JSON.stringify({
     repoId: state.repository.id,
     branchName: settings.branchName,
     baseBranch: baseBranch,

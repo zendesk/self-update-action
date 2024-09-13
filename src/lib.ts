@@ -255,6 +255,13 @@ async function createPR(state: State, settings: Settings, octokit: Octokit): Pro
   }
   type Response = { createPullRequest: { pullRequest: PullRequest } }
   const baseBranch = settings.baseBranch || cmdSilent(state, ['git', 'branch', '--show-current'])
+  console.log(JSON.stringify({
+    repoId: state.repository.id,
+    branchName: settings.branchName,
+    baseBranch: baseBranch,
+    title: settings.prTitle,
+    body: renderPRDescription(state, settings),
+  }))
   const response: Response = await octokit.graphql(`
     mutation updatePR(
       $branchName: String!,

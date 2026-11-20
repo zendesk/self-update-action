@@ -13,6 +13,7 @@ inputs:
   prTitle: { "description": 'PR title', required: false }
   prBody: { "description": 'PR body', required: false }
   prBodyHideOutput: { "description": "Don't show detailed output in PR body. Default: false", required: false }
+  prOnError: { "description": "Push a branch and open/update a PR when the update script fails (setting this to false skips the PR entirely, and leaves any existing PR alone). Default: true", required: false }
 
 outputs:
   pr_number:

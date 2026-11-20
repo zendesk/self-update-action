@@ -27,6 +27,7 @@ type Settings = {
   prTitle: string,
   prBody: string,
   prBodyHideOutput: string,
+  prOnError: string,
   runId: string,
 }
 
@@ -41,6 +42,7 @@ export const settingKeys = [
   'prTitle',
   'prBody',
   'prBodyHideOutput',
+  'prOnError',
   'authorName',
   'authorEmail',
 ]
@@ -72,6 +74,7 @@ export function parseSettings(inputs: Record<string, string>): Settings {
     prTitle: get('prTitle', '[bot] self-update'),
     prBody: get('prBody', 'This is an automated PR from a github action'),
     prBodyHideOutput: get('prBodyHideOutput', 'false'),
+    prOnError: get('prOnError', 'true'),
     authorName: get('authorName', 'github-actions'),
     authorEmail: get('authorEmail', '41898282+github-actions[bot]@users.noreply.github.com'),
     runId: assertDefined('GITHUB_RUN_ID', process.env['GITHUB_RUN_ID']),
@@ -228,6 +231,12 @@ export async function findPR(state: State, settings: Settings, octokit: Octokit)
 }
 
 export async function updatePR(state: State, settings: Settings, octokit: Octokit): Promise<State> {
+  if (state.hasError && settings.prOnError === 'false') {
+    // leave any existing PR alone: the failed run says nothing about
+    // whether its snapshot is still good, so don't push or close it
+    console.log("Update failed; prOnError is false, so not pushing a branch or PR")
+    return state
+  }
   if (requiresPR(state)) {
     state = pushBranch(state, settings);
     if (state.pullRequest == null) {
